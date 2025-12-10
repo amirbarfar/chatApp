@@ -17,12 +17,12 @@ app.prepare().then(() => {
     handle(res, req, parseUrl)
   })
 
-  const wsServer = createServer((res, req) => {
-    res.writHead(200, { 'Content-Type': 'text/plain' })
+  const wsServer = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' })
     res.end('WebSocket Server')
   })
 
-  const wss = new WebSocket.server({ server: wsServer })
+  const wss = new WebSocket.Server({ server: wsServer })
 
   const rooms = new Map()
 
