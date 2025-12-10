@@ -8,6 +8,7 @@ const app = next({ dev })
 const handle = app.getRequestHandler()
 
 const port = 3000
+
 const wsPort = 3001
 
 app.prepare().then(() => {
