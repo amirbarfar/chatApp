@@ -1,71 +1,141 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 interface ChatRoomProps {
-  username: string;
+  name: string;
   groupId: string;
   onLeave: () => void;
 }
 
 interface Message {
-  user: string;
-  text: string;
-  type: 'system' | 'other' | 'me';
+  id: number;
+  content: string;
+  createdAt: string;
+  user: {
+    displayName: string;
+  };
+  type: 'other' | 'me';
 }
 
-const mockMessages: Message[] = [
-  { user: 'سیستم', text: 'شما به گروه Code-2024 پیوستید.', type: 'system' },
-  { user: 'علی', text: 'سلام بچه‌ها، حالتون چطوره؟', type: 'other' },
-  { user: 'شما', text: 'من خوبم، ممنون.', type: 'me' },
-];
-
-const ChatRoom = ({ username, groupId, onLeave }: ChatRoomProps) => {
+const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
   const [inputMessage, setInputMessage] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const addMessage = useCallback((msg: Message) => {
+    setMessages(prev => [...prev, msg]);
+  }, []);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const response = await fetch(`/api/messages?uniqueId=${encodeURIComponent(groupId)}`);
+        const data = await response.json();
+        if (response.ok) {
+          const msgs = data.messages.map((m: any) => ({
+            ...m,
+            type: m.user.displayName === name ? 'me' : 'other' as 'me' | 'other',
+          }));
+          setMessages(msgs);
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    };
+    fetchMessages();
+
+    const userId = document.cookie.split('; ').find(row => row.startsWith('userId='))?.split('=')[1];
+    
+    if (userId) {
+      const ws = new WebSocket(`ws://localhost:3001?roomId=${encodeURIComponent(groupId)}&userId=${userId}`);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'message') {
+          const newMsg = {
+            id: Date.now(),
+            content: data.content,
+            createdAt: data.createdAt,
+            user: { displayName: data.displayName },
+            type: data.displayName === name ? 'me' : 'other' as 'me' | 'other',
+          };
+          
+          if (newMsg.type === 'other' || newMsg.type === 'me') {
+              addMessage(newMsg);
+          }
+        }
+      };
+
+      ws.onerror = (error) => {
+          console.error('WebSocket Error:', error);
+      };
+
+      ws.onclose = () => {
+        console.log('WS connection closed.');
+      };
+
+      return () => {
+        ws.close();
+      };
+    }
+  }, [groupId, name, addMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (inputMessage.trim() === '') return;
-    
-    
-    const newMessage: Message = { user: username, text: inputMessage, type: 'me' };
-    setMessages(prev => [...prev, newMessage]);
-    
+    const content = inputMessage.trim();
+    if (content === '') return;
+
     setInputMessage('');
+
+    const optimisticMessage: Message = {
+      id: Date.now(),
+      content: content,
+      createdAt: new Date().toISOString(),
+      user: { displayName: name },
+      type: 'me',
+    };
+    
+    addMessage(optimisticMessage); 
+    
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'message',
+        content: content,
+        displayName: name,
+      }));
+    }
+
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: content, uniqueId: groupId, displayName: name }),
+      });
+    } catch (error) {
+      console.error('Error saving message:', error);
+    }
   };
 
   const renderMessage = (msg: Message, index: number) => {
-    const isSystem = msg.type === 'system';
     const isMe = msg.type === 'me';
-
-    if (isSystem) {
-      return (
-        <div key={index} className="flex justify-center my-4">
-          <div className="bg-yellow-100 text-yellow-800 px-6 py-2 rounded-full shadow text-sm font-medium">
-            {msg.text}
-          </div>
-        </div>
-      );
-    }
 
     return (
       <div
-        key={index}
-        className={`flex ${isMe ? 'justify-start' : 'justify-end'} mb-4`}
+        key={msg.id || index}
+        className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-4`}
       >
-        <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg relative 'bg-white border border-gray-200 text-gray-800 rounded-bl-md'`}>
-          <div className={`text-xs font-semibold mb-1`}>
-            {msg.user}
+        <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg relative ${isMe ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200 text-gray-800'}`}>
+          <div className="text-xs font-semibold mb-1">
+            {isMe ? 'شما' : msg.user.displayName}
           </div>
-          <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
-          <div className={`text-xs mt-2 `}>
-            {new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+          <div className="text-xs mt-2 opacity-75">
+            {new Date(msg.createdAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
       </div>

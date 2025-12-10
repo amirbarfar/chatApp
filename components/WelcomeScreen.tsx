@@ -1,15 +1,15 @@
 
 import React, { useState } from 'react';
 
-const WelcomeScreen = ({ onJoin, onCreate }: { onJoin: (username: string, groupId: string) => void; onCreate: (username: string) => void }) => {
-  const [username, setUsername] = useState('');
+const WelcomeScreen = ({ onJoin, onCreate }: { onJoin: (name: string, groupId: string) => void; onCreate: () => Promise<string> }) => {
+  const [name, setName] = useState('');
   const [groupId, setGroupId] = useState('');
 
   const handleJoin = () => {
-    if (username.trim() && groupId.trim()) {
-      onJoin(username.trim(), groupId.trim());
+    if (name.trim() && groupId.trim()) {
+      onJoin(name.trim(), groupId.trim());
     } else {
-      alert('لطفاً نام کاربری و آیدی گروه را وارد کنید.');
+      alert('لطفاً نام و آیدی گروه را وارد کنید.');
     }
   };
 
@@ -23,14 +23,14 @@ const WelcomeScreen = ({ onJoin, onCreate }: { onJoin: (username: string, groupI
         </div>
         
         <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2" htmlFor="username">
-            نام کاربری
+          <label className="block text-gray-700 font-medium mb-2" htmlFor="name">
+            نام
           </label>
           <input
-            id="username"
+            id="name"
             type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-400 focus:border-gray-400 bg-gray-50"
             placeholder="مثلاً علی"
           />
@@ -65,13 +65,11 @@ const WelcomeScreen = ({ onJoin, onCreate }: { onJoin: (username: string, groupI
           </div>
 
           <button
-            onClick={() => onCreate(username)}
-            disabled={!username.trim()}
-            className={`w-full py-4 rounded-xl font-semibold transition duration-200 shadow-lg ${
-              username.trim()
-                ? 'bg-gray-700 text-white hover:bg-gray-800'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            onClick={async () => {
+              const groupId = await onCreate();
+              setGroupId(groupId);
+            }}
+            className="w-full bg-gray-700 text-white py-4 rounded-xl font-semibold hover:bg-gray-800 transition duration-200 shadow-lg"
           >
             ساخت گروه جدید
           </button>

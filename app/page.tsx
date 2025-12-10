@@ -1,52 +1,55 @@
 'use client'
 
 import React, { useState } from 'react';
-import RegisterScreen from '@/components/RegisterScreen';
-import LoginScreen from '@/components/LoginScreen';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ChatRoom from '@/components/ChatRoom';
 
 function App() {
-  const [appState, setAppState] = useState<'register' | 'login' | 'welcome' | 'chat'>('login');
-  const [currentUser, setCurrentUser] = useState<{ name: string; phone: string; uniqueId: string } | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<Record<string, { name: string; uniqueId: string }>>({});
-  const [userInfo, setUserInfo] = useState({ username: '', groupId: '' });
+  const [appState, setAppState] = useState<'welcome' | 'chat'>('welcome');
+  const [userInfo, setUserInfo] = useState({ name: '', groupId: '' });
 
-  const handleJoinGroup = (username: string, groupId: string) => {
-    setUserInfo({ username, groupId });
-    setAppState('chat');
+  const handleJoinGroup = async (name: string, groupId: string) => {
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, groupId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUserInfo({ name, groupId });
+        setAppState('chat');
+      } else {
+        alert(data.error);
+      }
+    } catch (error) {
+      console.error('Error joining group:', error);
+      alert('خطا در اتصال');
+    }
   };
 
-  const handleCreateGroup = (username : string) => {
-    const newGroupId = `Room-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    handleJoinGroup(username, newGroupId);
+  const handleCreateGroup = async (): Promise<string> => {
+    const response = await fetch('/api/group', {
+      method: 'POST',
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return data.groupId;
+    } else {
+      throw new Error(data.error);
+    }
   };
 
   const handleLeaveGroup = () => {
     setAppState('welcome');
-    setUserInfo({ username: userInfo.username, groupId: '' });
+    setUserInfo({ name: userInfo.name, groupId: '' });
   };
 
-  const handleRegister = (name: string, phone: string, uniqueId: string) => {
-    setRegisteredUsers(prev => ({ ...prev, [phone]: { name, uniqueId } }));
-    setCurrentUser({ name, phone, uniqueId });
-    setAppState('welcome');
-  };
-
-  const handleLogin = (phone: string) => {
-    if (registeredUsers[phone]) {
-      setCurrentUser({ name: registeredUsers[phone].name, phone, uniqueId: registeredUsers[phone].uniqueId });
-      setAppState('welcome');
-    } else {
-      alert('شماره تلفن یافت نشد. لطفاً ثبت نام کنید.');
-    }
-  };
-
-  if (appState === 'register') {
-    return <RegisterScreen onRegister={handleRegister} onSwitchToLogin={() => setAppState('login')} />;
-  } else if (appState === 'login') {
-    return <LoginScreen onLogin={handleLogin} onSwitchToRegister={() => setAppState('register')} />;
-  } else if (appState === 'welcome') {
+  if (appState === 'welcome') {
     return (
       <WelcomeScreen
         onJoin={handleJoinGroup}
@@ -56,7 +59,7 @@ function App() {
   } else if (appState === 'chat') {
     return (
       <ChatRoom
-        username={userInfo.username}
+        name={userInfo.name}
         groupId={userInfo.groupId}
         onLeave={handleLeaveGroup}
       />
