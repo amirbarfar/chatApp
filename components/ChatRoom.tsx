@@ -22,6 +22,8 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const onlineCount = new Set(messages.map(m => m.user.displayName)).size;
+
   const addMessage = useCallback((msg: Message) => {
     setMessages(prev => [...prev, msg]);
   }, []);
@@ -92,16 +94,6 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
 
     setInputMessage('');
 
-    const optimisticMessage: Message = {
-      id: Date.now(),
-      content: content,
-      createdAt: new Date().toISOString(),
-      user: { displayName: name },
-      type: 'me',
-    };
-    
-    addMessage(optimisticMessage); 
-    
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'message',
@@ -114,7 +106,7 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
       await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: content, uniqueId: groupId, displayName: name }),
+        body: JSON.stringify({ text: content, uniqueId: groupId }),
       });
     } catch (error) {
       console.error('Error saving message:', error);
@@ -150,7 +142,7 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold" style={{ fontFamily: 'Modam' }}>{groupId}</h2>
-              <p className="text-gray-300 text-sm">آنلاین • {messages.length} پیام</p>
+              <p className="text-gray-300 text-sm">{onlineCount} نفر آنلاین • {messages.length} پیام</p>
             </div>
             <div className="flex gap-4 items-center space-x-3 space-x-reverse">
               <button
