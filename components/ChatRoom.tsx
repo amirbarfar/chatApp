@@ -6,6 +6,7 @@ interface ChatRoomProps {
   onLeave: () => void;
 }
 
+
 interface Message {
   id: number;
   content: string;
