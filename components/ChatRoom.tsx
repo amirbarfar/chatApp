@@ -20,10 +20,9 @@ interface Message {
 const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
   const [inputMessage, setInputMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [onlineCount, setOnlineCount] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const onlineCount = new Set(messages.map(m => m.user.displayName)).size;
 
   const addMessage = useCallback((msg: Message) => {
     setMessages(prev => [...prev, msg]);
@@ -88,6 +87,21 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const fetchOnline = async () => {
+      try {
+        const response = await fetch(`/api/online?groupId=${encodeURIComponent(groupId)}`);
+        const data = await response.json();
+        setOnlineCount(data.online);
+      } catch (error) {
+        console.error('Error fetching online count:', error);
+      }
+    };
+    fetchOnline();
+    const interval = setInterval(fetchOnline, 10000);
+    return () => clearInterval(interval);
+  }, [groupId]);
+
   const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const content = inputMessage.trim();
@@ -126,7 +140,7 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
           <div className="text-xs font-semibold mb-1">
             {isMe ? 'شما' : msg.user.displayName}
           </div>
-          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+          <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.content}</p>
           <div className="text-xs mt-2 opacity-75">
             {new Date(msg.createdAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
           </div>
@@ -168,12 +182,19 @@ const ChatRoom = ({ name, groupId, onLeave }: ChatRoomProps) => {
           >
             ارسال
           </button>
-          <input
-            type="text"
+          <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e as any);
+              }
+            }}
             placeholder="پیام خود را تایپ کنید..."
-            className="flex-1 p-4 border outline-0 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 bg-white"
+            rows={1}
+            className="flex-1 p-4 border outline-0 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 bg-white resize-none"
+            style={{ minHeight: '56px', maxHeight: '120px' }}
           />
         </form>
 

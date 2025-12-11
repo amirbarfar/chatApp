@@ -13,7 +13,14 @@ app.prepare().then(() => {
 
   const server = createServer((req, res) => {
     const parseUrl = parse(req.url, true)
-    handle(res, req, parseUrl)
+    if (parseUrl.pathname === '/api/online') {
+      const groupId = parseUrl.query.groupId
+      const count = rooms.get(groupId)?.size || 0
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ online: count }))
+      return
+    }
+    handle(req, res, parseUrl)
   })
 
   const wsServer = createServer((req, res) => {
